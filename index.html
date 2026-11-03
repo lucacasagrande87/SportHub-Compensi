@@ -760,10 +760,10 @@ const rRows = () => { const k = new Set(pKeys()); return S.presenze.filter(r => 
 const stagLbl = y => y + '/' + String(y + 1).slice(2);
 const rSlug = () => S.rMode === 'anno' ? String(S.pAnno) : S.rMode === 'stag' ? 'stagione-' + S.pStag + '-' + String(S.pStag + 1).slice(2) : S.mese;
 const fmtV = v => S.rMeas === 'ore' ? numFmt.format(round2(v)) + ' h' : eur(v);
-function monthData(rows, keys) {
+function monthData(rows, keys, conRimborsi) {
   const o = {}; keys.forEach(k => { o[k] = {}; });
   rows.forEach(r => { const m = o[r.mese]; if (!m) return;
-    (r.righe || []).forEach(l => { const id = sId(l.progettoId), v = S.rMeas === 'ore' ? (l.ore || 0) : (l.importo || 0); if (v) m[id] = (m[id] || 0) + v; });
+    (r.righe || []).forEach(l => { const id = sId(l.progettoId), v = S.rMeas === 'ore' ? (l.ore || 0) : (l.importo || 0) + (conRimborsi ? l.rimborsoTot || 0 : 0); if (v) m[id] = (m[id] || 0) + v; });
     if (S.rMeas !== 'ore' && r.extra) m.__altro = (m.__altro || 0) + r.extra; });
   return o;
 }
@@ -847,8 +847,8 @@ function renderPeriodo() {
   $('r-plabel').textContent = S.rMode === 'anno' ? 'Anno ' + S.pAnno : 'Stagione ' + stagLbl(S.pStag);
   $('r-stats').innerHTML = '<div class="stat key"><span class="lbl">Ancora da bonificare</span><span class="val">' + eur(due) + '</span><span class="sub">' + rows.filter(isDue).length + ' schede aperte</span></div><div class="stat"><span class="lbl">Compensi netti</span><span class="val">' + eur(sum('compenso')) + '</span><span class="sub">' + new Set(rows.map(r => r.collaboratoreId)).size + ' collaboratori</span></div><div class="stat"><span class="lbl">Rimborsi</span><span class="val">' + eur(sum('rimborsi')) + '</span><span class="sub">viaggi e spese</span></div><div class="stat"><span class="lbl">Contributi</span><span class="val">' + eur(con) + '</span><span class="sub">su ' + eur(sum('eccedenza')) + ' oltre i 5.000</span></div>';
   $('r-c-t').textContent = (S.rMeas === 'ore' ? 'Ore' : 'Compensi') + ' per mese e progetto';
-  $('r-c-s').textContent = S.rMode === 'anno' ? 'Da gennaio a dicembre ' + S.pAnno : 'Da settembre ' + S.pStag + ' a giugno ' + (S.pStag + 1);
-  drawColumns(keys, monthData(rows, keys));
+  $('r-c-s').textContent = (S.rMode === 'anno' ? 'Da gennaio a dicembre ' + S.pAnno : 'Da settembre ' + S.pStag + ' a giugno ' + (S.pStag + 1)) + (S.rMeas === 'ore' ? '' : '. Le colonne dei progetti con viaggi sommano compenso e rimborsi viaggio.');
+  drawColumns(keys, monthData(rows, keys, true));
   const P = {};
   rows.forEach(r => { const p = P[r.collaboratoreId] = P[r.collaboratoreId] || {nome: r.collaboratoreNome, mesi: 0, ore: 0, c: 0, ri: 0, b: 0, con: 0, due: 0}; p.mesi++; p.ore += (r.righe || []).reduce((n, l) => n + (l.ore || 0), 0); p.c += r.compenso || 0; p.ri += r.rimborsi || 0; p.b += r.bonifico || 0; p.con += (r.contributi || {}).tot || 0; if (isDue(r)) p.due += r.bonifico || 0; });
   $('r-prows').innerHTML = Object.keys(P).sort((a, b) => P[a].nome.localeCompare(P[b].nome, 'it')).map(id => { const p = P[id]; return '<tr><td><button type="button" class="linkb" data-c="' + esc(id) + '">' + esc(p.nome) + '</button></td><td class="r">' + p.mesi + '</td><td class="r">' + (p.ore ? numFmt.format(round2(p.ore)) : '') + '</td><td class="r">' + eur(p.c) + '</td><td class="r">' + (p.ri ? eur(p.ri) : '') + '</td><td class="r">' + eur(p.b) + '</td><td class="r">' + (p.con ? eur(p.con) : '') + '</td><td class="r">' + (p.due ? eur(p.due) : '') + '</td></tr>'; }).join('') || '<tr><td colspan="8" class="empty">Nessun compenso in questo periodo.</td></tr>';
