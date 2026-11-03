@@ -139,6 +139,8 @@ input.n{font-family:var(--f-num);text-align:right}
 .oltre dl div{min-width:0}
 .oltre dd{margin:0;font-family:var(--f-num);font-size:1rem;color:var(--ink)}
 .tot-line{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 18px;align-items:baseline;background:var(--ink);color:var(--bg);border-radius:9px;padding:12px 16px}
+.tot-line small{flex:1 0 100%;font-size:.84rem;opacity:.85}
+.riga .tot .rb{display:block;font-size:.76rem;color:var(--muted);white-space:nowrap}
 .tot-line b{font-family:var(--f-num);font-size:1.3rem;font-weight:500}
 .meter{height:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;overflow:hidden;margin:8px 0 4px}
 .meter i{display:block;height:100%;background:var(--accent)}
@@ -320,7 +322,7 @@ input.n{font-family:var(--f-num);text-align:right}
                 <dl id="f-contr"></dl>
               </div>
               <div class="field"><label for="f-note">Note (facoltative)</label><input id="f-note" type="text" maxlength="300"></div>
-              <div class="tot-line"><span>Bonifico al collaboratore</span><b id="f-tot">0,00 €</b></div>
+              <div class="tot-line"><span>Bonifico al collaboratore</span><b id="f-tot">0,00 €</b><small id="f-split" hidden></small></div>
               <p class="err" id="f-err" role="alert" hidden></p>
               <div class="actions"><button class="btn primary needs-write" id="f-save" type="submit">Salva presenze</button><button class="btn danger needs-write" id="f-del" type="button" hidden style="margin-left:auto">Elimina scheda</button></div>
             </div>
@@ -367,7 +369,7 @@ input.n{font-family:var(--f-num);text-align:right}
         <select id="v-mese" aria-label="Mese del bonifico" style="width:auto"></select>
       </div><button class="btn" id="v-csv" type="button">Esporta CSV</button></div>
       <div class="stats" id="v-stats"></div>
-      <div class="card tablecard"><div class="scroll"><table class="tbl"><thead><tr><th>Data bonifico</th><th>Collaboratore</th><th>Mese</th><th>Dettaglio</th><th class="r">Bonifico</th><th class="r">Contributi</th></tr></thead><tbody id="v-rows"></tbody><tfoot id="v-foot"></tfoot></table></div></div>
+      <div class="card tablecard"><div class="scroll"><table class="tbl"><thead><tr><th>Data bonifico</th><th>Collaboratore</th><th>Mese</th><th>Dettaglio</th><th class="r">Compenso</th><th class="r">Rimborsi</th><th class="r">Bonifico</th><th class="r">Contributi</th></tr></thead><tbody id="v-rows"></tbody><tfoot id="v-foot"></tfoot></table></div></div>
     </section>
 
     <section id="view-anag" hidden>
@@ -642,11 +644,12 @@ function formTotals() {
 function updateCalc() {
   F.righe.forEach((l, i) => {
     syncLine(l);
-    const t = $('t-' + i), rb = lineRimb(l), c = $('c-' + i); if (t) t.textContent = eur(lineAmt(l) + rb);
+    const t = $('t-' + i), rb = lineRimb(l), c = $('c-' + i); if (t) t.innerHTML = eur(lineAmt(l)) + (rb ? '<small class="rb">+ ' + eur(rb) + ' viaggi</small>' : '');
     if (c) c.textContent = (l.presenze || []).length + ' presenze su ' + l.slots.length + ' giornate · ' + numFmt.format(l.ore || 0) + ' h' + (l.tipo === 'mese' ? ' · il fisso non cambia' : '');
   });
   const T = formTotals(), c = cById(F.cid) || {}, x = contributi(F.ecc || 0, c.copertura, aliq());
   $('f-tot').textContent = eur(T.bonifico);
+  $('f-split').hidden = !T.rimborsi; $('f-split').textContent = 'Compenso ' + eur(T.compenso) + ' + rimborsi ' + eur(T.rimborsi) + ', fuori dai 5.000 € e dai contributi';
   $('f-contr').innerHTML = '<div><dt>Eccedenza lorda</dt><dd>' + eur(x.lordoEcc) + '</dd></div><div><dt>Contributi totali (F24)</dt><dd>' + eur(x.tot) + '</dd></div><div><dt>di cui collaboratore / Sport Hub</dt><dd>' + eur(x.coll) + ' / ' + eur(x.sh) + '</dd></div>';
   const y = F.mese.slice(0, 4), prev = S.presenze.filter(r => r.collaboratoreId === F.cid && (r.mese || '').startsWith(y) && r.mese < F.mese);
   const pc = prev.reduce((n, r) => n + (r.compenso || 0), 0), pe = prev.reduce((n, r) => n + (r.eccedenza || 0), 0);
@@ -883,22 +886,22 @@ function renderDet() {
   if (!c) { box.innerHTML = '<div class="card empty">Scegli una persona per vedere i compensi.</div>'; return; }
   const all = S.presenze.filter(r => r.collaboratoreId === c.id);
   const rows = all.filter(r => S.bFilter === 'tutti' ? true : S.bFilter === 'da' ? isDue(r) : !isDue(r));
-  const dueT = all.filter(isDue).reduce((n, r) => n + (r.bonifico || 0), 0);
+  const dueT = all.filter(isDue).reduce((n, r) => n + (r.bonifico || 0), 0), dueR = all.filter(isDue).reduce((n, r) => n + (r.rimborsi || 0), 0);
   const y = todayStr().slice(0, 4), paidT = all.filter(r => !isDue(r) && (r.dataBonifico || '').startsWith(y)).reduce((n, r) => n + (r.bonifico || 0), 0);
   const con = all.filter(isDue).reduce((n, r) => n + ((r.contributi || {}).tot || 0), 0);
   const seg = [['da','Da bonificare'],['fatti','Bonificati'],['tutti','Tutti']].map(x => '<button type="button" data-flt="' + x[0] + '" aria-pressed="' + (S.bFilter === x[0]) + '">' + x[1] + '</button>').join('');
   box.innerHTML = '<button class="back" type="button" data-a="back">‹ Elenco</button><div class="card"><div class="head-row"><div><h2>' + esc(c.nome) + '</h2><p class="meta">' + (c.iban ? 'IBAN <span class="num">' + esc(c.iban) + '</span>' : '') + '</p></div>' + (c.iban ? '<button class="btn small" type="button" data-a="iban">Copia IBAN</button>' : '') + '</div>'
-    + '<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:14px"><div class="stat key"><span class="lbl">Da bonificare</span><span class="val">' + eur(dueT) + '</span></div><div class="stat"><span class="lbl">Bonificato nel ' + y + '</span><span class="val">' + eur(paidT) + '</span></div><div class="stat"><span class="lbl">Contributi collegati</span><span class="val">' + eur(con) + '</span><span class="sub">sui mesi da bonificare</span></div></div></div>'
+    + '<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:14px"><div class="stat key"><span class="lbl">Da bonificare</span><span class="val">' + eur(dueT) + '</span><span class="sub">' + (dueR ? 'di cui rimborsi ' + eur(dueR) : 'nessun rimborso') + '</span></div><div class="stat"><span class="lbl">Bonificato nel ' + y + '</span><span class="val">' + eur(paidT) + '</span></div><div class="stat"><span class="lbl">Contributi collegati</span><span class="val">' + eur(con) + '</span><span class="sub">sui mesi da bonificare</span></div></div></div>'
     + '<div class="seg" role="group" aria-label="Filtro" style="align-self:flex-start">' + seg + '</div>'
-    + '<div class="card tablecard"><div class="scroll"><table class="tbl"><thead><tr><th class="chk"><input type="checkbox" id="b-all" aria-label="Seleziona tutti"></th><th>Mese</th><th>Dettaglio</th><th class="r">Bonifico</th><th class="r">Contributi</th><th>Stato</th></tr></thead><tbody>'
-    + (rows.map(r => '<tr class="' + (S.picked.has(r.id) ? 'sel' : '') + '"><td class="chk"><input type="checkbox" data-p="' + esc(r.id) + '"' + (S.picked.has(r.id) ? ' checked' : '') + ' aria-label="Seleziona ' + mLabel(r.mese) + '"></td><td><button type="button" class="linkb" data-open="' + esc(r.mese) + '">' + mLabel(r.mese) + '</button></td><td class="note">' + esc((r.righe || []).map(l => l.progettoNome + (l.ore ? ' ' + numFmt.format(l.ore) + ' h' : '')).join(' · ')) + extraTxt(r) + (r.rimborsi ? ' · rimborsi totali ' + eur(r.rimborsi) : '') + (r.note ? '<br>' + esc(r.note) : '') + '</td><td class="r">' + eur(r.bonifico) + '</td><td class="r">' + ((r.contributi || {}).tot ? eur(r.contributi.tot) : '') + '</td><td>' + (isDue(r) ? '<span class="pill due">Da bonificare</span>' : '<span class="pill done">' + fmtDate(r.dataBonifico) + '</span>') + '</td></tr>').join('') || '<tr><td colspan="6" class="empty">Nessun compenso in questa vista.</td></tr>') + '</tbody></table></div></div>'
+    + '<div class="card tablecard"><div class="scroll"><table class="tbl"><thead><tr><th class="chk"><input type="checkbox" id="b-all" aria-label="Seleziona tutti"></th><th>Mese</th><th>Dettaglio</th><th class="r">Compenso</th><th class="r">Rimborsi</th><th class="r">Bonifico</th><th class="r">Contributi</th><th>Stato</th></tr></thead><tbody>'
+    + (rows.map(r => '<tr class="' + (S.picked.has(r.id) ? 'sel' : '') + '"><td class="chk"><input type="checkbox" data-p="' + esc(r.id) + '"' + (S.picked.has(r.id) ? ' checked' : '') + ' aria-label="Seleziona ' + mLabel(r.mese) + '"></td><td><button type="button" class="linkb" data-open="' + esc(r.mese) + '">' + mLabel(r.mese) + '</button></td><td class="note">' + esc((r.righe || []).map(l => l.progettoNome + (l.ore ? ' ' + numFmt.format(l.ore) + ' h' : '')).join(' · ')) + extraTxt(r) + (r.note ? '<br>' + esc(r.note) : '') + '</td><td class="r">' + eur(r.compenso) + '</td><td class="r">' + (r.rimborsi ? eur(r.rimborsi) : '') + '</td><td class="r">' + eur(r.bonifico) + '</td><td class="r">' + ((r.contributi || {}).tot ? eur(r.contributi.tot) : '') + '</td><td>' + (isDue(r) ? '<span class="pill due">Da bonificare</span>' : '<span class="pill done">' + fmtDate(r.dataBonifico) + '</span>') + '</td></tr>').join('') || '<tr><td colspan="8" class="empty">Nessun compenso in questa vista.</td></tr>') + '</tbody></table></div></div>'
     + barHtml();
   const allBox = $('b-all'); if (allBox) allBox.checked = rows.length > 0 && rows.every(r => S.picked.has(r.id));
 }
 function barHtml(did) {
   const rs = [...S.picked].map(id => S.presenze.find(r => r.id === id)).filter(Boolean); if (!rs.length) return '';
-  const d = rs.filter(isDue), p = rs.filter(r => !isDue(r)), t = d.reduce((n, r) => n + (r.bonifico || 0), 0);
-  return '<div class="bar needs-write"><span>' + rs.length + ' selezionati' + (d.length ? ' · <b class="num">' + eur(t) + '</b>' : '') + '</span><div class="actions">' + (d.length ? '<label>Data bonifico <input type="date" id="' + (did || 'b-date') + '" value="' + esc(S.payDate) + '"></label><button class="btn" type="button" data-a="pay">Segna bonificati</button>' : '') + (p.length ? '<button class="btn alt" type="button" data-a="reopen">Riporta da bonificare</button>' : '') + '</div></div>';
+  const d = rs.filter(isDue), p = rs.filter(r => !isDue(r)), t = d.reduce((n, r) => n + (r.bonifico || 0), 0), tr = d.reduce((n, r) => n + (r.rimborsi || 0), 0);
+  return '<div class="bar needs-write"><span>' + rs.length + ' selezionati' + (d.length ? ' · <b class="num">' + eur(t) + '</b>' + (tr ? ' (compensi ' + eur(t - tr) + ' + rimborsi ' + eur(tr) + ')' : '') : '') + '</span><div class="actions">' + (d.length ? '<label>Data bonifico <input type="date" id="' + (did || 'b-date') + '" value="' + esc(S.payDate) + '"></label><button class="btn" type="button" data-a="pay">Segna bonificati</button>' : '') + (p.length ? '<button class="btn alt" type="button" data-a="reopen">Riporta da bonificare</button>' : '') + '</div></div>';
 }
 $('b-search').addEventListener('input', e => { S.bSearch = e.target.value; renderBon(); });
 $('b-due').addEventListener('change', e => { S.bDue = e.target.checked; renderBon(); });
@@ -956,8 +959,8 @@ function renderFatti() {
   $('v-mese').innerHTML = '<option value="">Tutti i mesi</option>' + MESI.map((m, i) => '<option value="' + String(i + 1).padStart(2, '0') + '">' + m + '</option>').join(''); $('v-mese').value = S.vMese;
   const rows = vRows(), sum = k => round2(rows.reduce((n, r) => n + (r[k] || 0), 0)), con = round2(rows.reduce((n, r) => n + ((r.contributi || {}).tot || 0), 0));
   $('v-stats').innerHTML = '<div class="stat"><span class="lbl">Totale bonificato</span><span class="val">' + eur(sum('bonifico')) + '</span><span class="sub">' + rows.length + (rows.length === 1 ? ' compenso' : ' compensi') + '</span></div><div class="stat"><span class="lbl">Compensi netti</span><span class="val">' + eur(sum('compenso')) + '</span></div><div class="stat"><span class="lbl">Rimborsi</span><span class="val">' + eur(sum('rimborsi')) + '</span></div><div class="stat"><span class="lbl">Contributi collegati</span><span class="val">' + eur(con) + '</span></div>';
-  $('v-rows').innerHTML = rows.map(r => '<tr><td class="num">' + fmtDate(r.dataBonifico) + '</td><td><button type="button" class="linkb" data-c="' + esc(r.collaboratoreId) + '">' + esc(r.collaboratoreNome) + '</button></td><td>' + mLabel(r.mese) + '</td><td class="note">' + esc((r.righe || []).map(l => l.progettoNome + (l.ore ? ' ' + numFmt.format(l.ore) + ' h' : '')).join(' · ')) + extraTxt(r) + '</td><td class="r">' + eur(r.bonifico) + '</td><td class="r">' + ((r.contributi || {}).tot ? eur(r.contributi.tot) : '') + '</td></tr>').join('') || '<tr><td colspan="6" class="empty">Nessun bonifico in questo periodo.</td></tr>';
-  $('v-foot').innerHTML = rows.length ? '<tr><td colspan="4">Totale</td><td class="r">' + eur(sum('bonifico')) + '</td><td class="r">' + eur(con) + '</td></tr>' : '';
+  $('v-rows').innerHTML = rows.map(r => '<tr><td class="num">' + fmtDate(r.dataBonifico) + '</td><td><button type="button" class="linkb" data-c="' + esc(r.collaboratoreId) + '">' + esc(r.collaboratoreNome) + '</button></td><td>' + mLabel(r.mese) + '</td><td class="note">' + esc((r.righe || []).map(l => l.progettoNome + (l.ore ? ' ' + numFmt.format(l.ore) + ' h' : '')).join(' · ')) + extraTxt(r) + '</td><td class="r">' + eur(r.compenso) + '</td><td class="r">' + (r.rimborsi ? eur(r.rimborsi) : '') + '</td><td class="r">' + eur(r.bonifico) + '</td><td class="r">' + ((r.contributi || {}).tot ? eur(r.contributi.tot) : '') + '</td></tr>').join('') || '<tr><td colspan="8" class="empty">Nessun bonifico in questo periodo.</td></tr>';
+  $('v-foot').innerHTML = rows.length ? '<tr><td colspan="4">Totale</td><td class="r">' + eur(sum('compenso')) + '</td><td class="r">' + eur(sum('rimborsi')) + '</td><td class="r">' + eur(sum('bonifico')) + '</td><td class="r">' + eur(con) + '</td></tr>' : '';
 }
 $('v-q').addEventListener('input', e => { S.vQ = e.target.value; renderFatti(); });
 $('v-anno').addEventListener('change', e => { S.vAnno = e.target.value; renderFatti(); });
