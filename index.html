@@ -18,7 +18,7 @@
   --due:#855A00; --due-soft:#FEF0CC; --done:#3F6D0E; --done-soft:#E6F3D5;
   --danger:#B3261E; --danger-soft:#FADBD7;
   --shadow:0 1px 2px rgba(51,52,50,.06),0 4px 14px rgba(51,52,50,.05);
-  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;--s9:#8a5a2b;--s10:#44607a;--s11:#0e7c86;--s12:#9a8f00;
   --f-body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
   --f-disp:'Barlow Condensed','Barlow',system-ui,sans-serif;
   --f-num:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
@@ -30,7 +30,7 @@
     --over:#FF7FB5; --over-soft:#451B2F;
     --due:#F9B93A; --due-soft:#3C2E0F; --done:#A0D65E; --done-soft:#26381A;
     --danger:#FF8A80; --danger-soft:#3C1A18; --shadow:none; color-scheme:dark;
-    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;
+    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;--s9:#b98a5e;--s10:#8fa9c2;--s11:#3fb6c0;--s12:#c7bb3a;
   }
 }
 :root[data-theme="dark"]{
@@ -39,7 +39,7 @@
   --over:#FF7FB5; --over-soft:#451B2F;
   --due:#F9B93A; --due-soft:#3C2E0F; --done:#A0D65E; --done-soft:#26381A;
   --danger:#FF8A80; --danger-soft:#3C1A18; --shadow:none; color-scheme:dark;
-    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;
+    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767;--s9:#b98a5e;--s10:#8fa9c2;--s11:#3fb6c0;--s12:#c7bb3a;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -812,20 +812,23 @@ function drawBars(rows, keys) {
   $('r-hb').innerHTML = ids.map(id => '<li><span class="nm">' + esc(sName(id)) + '</span><div class="tr"><i style="width:' + (t[id] / mx * 100).toFixed(1) + '%;background:' + sCol(id) + '"></i></div><span class="v">' + fmtV(t[id]) + '<small>' + numFmt.format(Math.round(t[id] / sum * 100)) + '%</small></span></li>').join('') || '<li class="empty" style="display:block">Nessun dato in questo periodo.</li>';
 }
 // una torta per progetto: quota di ogni collaboratore sul totale del progetto (al massimo 8 fette, le ultime confluiscono in Altri)
+// ogni collaboratore ha sempre lo stesso colore, in tutte le torte
+const C_COL = {'gianluca-gamma': 1, 'paolo-cigala': 2, 'carlo-cusimano': 3, 'lorenza-stival': 4, 'edda-zaccherini': 5, 'andrea-tonellato': 6, 'keflom': 7, 'alessia-cattai': 8, 'dario-campana': 9};
+const cCol = id => { const n = C_COL[id] || 10 + [...String(id)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 3; return 'var(--s' + n + ')'; };
 function drawPies(rows) {
-  const P = {};
-  rows.forEach(r => (r.righe || []).forEach(l => { const v = S.rMeas === 'ore' ? (l.ore || 0) : (l.importo || 0); if (!v) return; const p = P[l.progettoId] = P[l.progettoId] || {id: l.progettoId, nome: l.progettoNome || sName(l.progettoId), tot: 0, c: {}}; p.tot += v; p.c[r.collaboratoreNome] = (p.c[r.collaboratoreNome] || 0) + v; }));
+  const P = {}, nomi = {};
+  rows.forEach(r => (r.righe || []).forEach(l => { const v = S.rMeas === 'ore' ? (l.ore || 0) : (l.importo || 0); if (!v) return; const p = P[l.progettoId] = P[l.progettoId] || {id: l.progettoId, nome: l.progettoNome || sName(l.progettoId), tot: 0, c: {}}; p.tot += v; p.c[r.collaboratoreId] = (p.c[r.collaboratoreId] || 0) + v; nomi[r.collaboratoreId] = r.collaboratoreNome; }));
   $('r-t-t').textContent = 'Quota di ogni collaboratore per progetto';
   $('r-t-s').textContent = (S.rMeas === 'ore' ? 'Ore' : 'Compensi netti') + ' del periodo. Extra compenso e rimborsi non rientrano perché non sono legati a un progetto.';
   $('r-pies').innerHTML = Object.values(P).sort((a, b) => b.tot - a.tot).map(p => {
-    let parts = Object.keys(p.c).sort((a, b) => a.localeCompare(b, 'it')).map(n => ({n, v: p.c[n]}));
-    if (parts.length > 8) { const big = parts.slice().sort((a, b) => b.v - a.v), keep = new Set(big.slice(0, 7).map(x => x.n)), rest = parts.filter(x => !keep.has(x.n)); parts = parts.filter(x => keep.has(x.n)).concat({n: 'Altri', v: rest.reduce((s, x) => s + x.v, 0)}); }
+    let parts = Object.keys(p.c).sort((a, b) => nomi[a].localeCompare(nomi[b], 'it')).map(id => ({id, n: nomi[id], v: p.c[id]}));
+    if (parts.length > 8) { const big = parts.slice().sort((a, b) => b.v - a.v), keep = new Set(big.slice(0, 7).map(x => x.n)), rest = parts.filter(x => !keep.has(x.n)); parts = parts.filter(x => keep.has(x.n)).concat({n: 'Altri', col: 'var(--muted)', v: rest.reduce((s, x) => s + x.v, 0)}); }
     let a = -Math.PI / 2, svg = '';
-    parts.forEach((x, i) => { const sh = x.v / p.tot, col = 'var(--s' + (i + 1) + ')', tt = '<title>' + esc(x.n + ': ' + fmtV(x.v)) + '</title>';
+    parts.forEach((x, i) => { const sh = x.v / p.tot, col = x.col || cCol(x.id), tt = '<title>' + esc(x.n + ': ' + fmtV(x.v)) + '</title>';
       if (sh > .9999) { svg += '<circle cx="60" cy="60" r="56" style="fill:' + col + '">' + tt + '</circle>'; return; }
       const b = a + sh * 2 * Math.PI, pt = t => (60 + 56 * Math.cos(t)).toFixed(2) + ' ' + (60 + 56 * Math.sin(t)).toFixed(2);
       svg += '<path d="M60 60L' + pt(a) + 'A56 56 0 ' + (sh > .5 ? 1 : 0) + ' 1 ' + pt(b) + 'Z" style="fill:' + col + '">' + tt + '</path>'; a = b; });
-    return '<div class="pie"><h4><em>' + logoTag(p.id) + esc(p.nome) + '</em><span>' + fmtV(p.tot) + '</span></h4><svg viewBox="0 0 120 120" role="img" aria-label="' + esc('Quote per collaboratore di ' + p.nome) + '">' + svg + '</svg><ul>' + parts.map((x, i) => '<li><span><i style="background:var(--s' + (i + 1) + ')"></i>' + esc(x.n) + '</span><span class="n">' + fmtV(x.v) + '<small>' + Math.round(x.v / p.tot * 100) + '%</small></span></li>').join('') + '</ul></div>';
+    return '<div class="pie"><h4><em>' + logoTag(p.id) + esc(p.nome) + '</em><span>' + fmtV(p.tot) + '</span></h4><svg viewBox="0 0 120 120" role="img" aria-label="' + esc('Quote per collaboratore di ' + p.nome) + '">' + svg + '</svg><ul>' + parts.map((x, i) => '<li><span><i style="background:' + (x.col || cCol(x.id)) + '"></i>' + esc(x.n) + '</span><span class="n">' + fmtV(x.v) + '<small>' + Math.round(x.v / p.tot * 100) + '%</small></span></li>').join('') + '</ul></div>';
   }).join('') || '<p class="empty">Nessun dato in questo periodo.</p>';
 }
 function renderPeriodo() {
