@@ -214,7 +214,7 @@ input.n{font-family:var(--f-num);text-align:right}
 .hbars li{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr) 140px;gap:10px;align-items:center;font-size:.9rem}
 .hbars .nm{overflow-wrap:anywhere}
 .hbars .trw{display:flex;flex-direction:column;gap:3px;min-width:0}
-.hbars .tr.rb{height:7px}
+.hbars .tr.rb,.hbars .tr.ct{height:7px}
 .hbars .tr.rb i{opacity:.5}
 .hbars .v .vr{display:block;margin:0}
 .hbars .tr{height:12px;background:var(--surface-2);border-radius:0 4px 4px 0;overflow:hidden}
@@ -849,10 +849,10 @@ function drawBars(rows, keys) {
   const data = monthData(rows, keys), t = serTot(data), ids = orderIds(t).sort((a, b) => t[b] - t[a]), sum = ids.reduce((n, id) => n + t[id], 0), rb = {};
   if (S.rMeas !== 'ore') rows.forEach(r => (r.righe || []).forEach(l => { const id = sId(l.progettoId); if (l.rimborsoTot && keys.includes(r.mese)) rb[id] = (rb[id] || 0) + l.rimborsoTot; }));
   const kk = {}; if (S.rMeas !== 'ore') rows.forEach(r => (r.righe || []).forEach(l => { const id = sId(l.progettoId), v = kShare(r, l); if (v && keys.includes(r.mese)) kk[id] = (kk[id] || 0) + v; }));
-  const mx = Math.max(0, ...ids.map(id => t[id]), ...Object.values(rb));
+  const mx = Math.max(0, ...ids.map(id => t[id]), ...Object.values(rb), ...Object.values(kk));
   $('r-h-t').textContent = (S.rMeas === 'ore' ? 'Ore' : 'Compensi') + ' per progetto';
-  $('r-h-s').textContent = S.rMeas === 'ore' ? 'Ore dalle presenze spuntate o scritte a mano.' : 'Compensi netti, rimborsi esclusi. La percentuale è la quota sul totale del periodo.';
-  $('r-hb').innerHTML = ids.map(id => '<li><span class="nm">' + esc(sName(id)) + '</span><div class="trw"><div class="tr"><i style="width:' + (t[id] / mx * 100).toFixed(1) + '%;background:' + sCol(id) + '"></i></div>' + (rb[id] ? '<div class="tr rb"><i style="width:' + (rb[id] / mx * 100).toFixed(1) + '%;background:' + sCol(id) + '"></i></div>' : '') + '</div><span class="v">' + fmtV(t[id]) + '<small>' + numFmt.format(Math.round(t[id] / sum * 100)) + '%</small>' + (rb[id] ? '<small class="vr">+ ' + eur(rb[id]) + ' viaggi</small>' : '') + (kk[id] ? '<small class="vr">+ ' + eur(kk[id]) + ' contributi</small>' : '') + '</span></li>').join('') || '<li class="empty" style="display:block">Nessun dato in questo periodo.</li>';
+  $('r-h-s').textContent = S.rMeas === 'ore' ? 'Ore dalle presenze spuntate o scritte a mano.' : 'Compensi netti. Sotto, più sottili, i rimborsi viaggio e in grigio i contributi. La percentuale è calcolata sui compensi.';
+  $('r-hb').innerHTML = ids.map(id => '<li><span class="nm">' + esc(sName(id)) + '</span><div class="trw"><div class="tr"><i style="width:' + (t[id] / mx * 100).toFixed(1) + '%;background:' + sCol(id) + '"></i></div>' + (rb[id] ? '<div class="tr rb"><i style="width:' + (rb[id] / mx * 100).toFixed(1) + '%;background:' + sCol(id) + '"></i></div>' : '') + (kk[id] ? '<div class="tr ct"><i style="width:' + (kk[id] / mx * 100).toFixed(1) + '%;background:var(--muted)"></i></div>' : '') + '</div><span class="v">' + fmtV(t[id]) + '<small>' + numFmt.format(Math.round(t[id] / sum * 100)) + '%</small>' + (rb[id] ? '<small class="vr">+ ' + eur(rb[id]) + ' viaggi</small>' : '') + (kk[id] ? '<small class="vr">+ ' + eur(kk[id]) + ' contributi</small>' : '') + '</span></li>').join('') || '<li class="empty" style="display:block">Nessun dato in questo periodo.</li>';
 }
 // una torta per progetto: quota di ogni collaboratore sul totale del progetto (al massimo 8 fette, le ultime confluiscono in Altri)
 // ogni collaboratore ha sempre lo stesso colore, in tutte le torte
