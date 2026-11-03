@@ -532,24 +532,24 @@ function renderAll() {
 document.querySelectorAll('[data-month]').forEach(b => b.addEventListener('click', e => {
   const s = e.target.closest('[data-step]'); if (!s) return;
   S.mese = mShift(S.mese, Number(s.dataset.step)); S.picked.clear();
-  if (F) loadForm(cById(F.cid) && paidIn(cById(F.cid), S.mese) ? F.cid : '');
+  if (F) loadForm(cById(F.cid) ? F.cid : '');
   renderAll();
 }));
 
 /* presenze */
 function renderPres() {
-  const sel = $('f-coll'), list = S.collaboratori.filter(c => c.attivo !== false && paidIn(c, S.mese));
+  const sel = $('f-coll'), list = S.collaboratori.filter(c => c.attivo !== false && paid(c));
   const opts = '<option value="">Scegli…</option>' + list.map(c => '<option value="' + esc(c.id) + '">' + esc(c.nome) + '</option>').join('');
   if (sel.dataset.o !== opts) { sel.innerHTML = opts; sel.dataset.o = opts; }
   sel.value = F ? F.cid : '';
   renderSide();
 }
 function renderSide() {
-  const list = S.collaboratori.filter(c => c.attivo !== false && paidIn(c, S.mese));
-  const done = list.filter(c => prOf(S.mese, c.id)).length;
-  $('s-sub').textContent = done + ' di ' + list.length + ' collaboratori caricati in ' + mLabel(S.mese);
+  const list = S.collaboratori.filter(c => c.attivo !== false && paid(c));
+  const attesi = list.filter(c => paidIn(c, S.mese)), done = attesi.filter(c => prOf(S.mese, c.id)).length;
+  $('s-sub').textContent = done + ' di ' + attesi.length + ' collaboratori caricati in ' + mLabel(S.mese);
   $('s-list').innerHTML = list.map(c => { const r = prOf(S.mese, c.id);
-    const st = !r ? '<span class="pill wait">Da caricare</span>' : isDue(r) ? '<span class="pill due">' + esc(eur(r.bonifico)) + '</span>' : '<span class="pill done">Bonificato</span>';
+    const st = !r ? '<span class="pill wait">' + (paidIn(c, S.mese) ? 'Da caricare' : 'Progetto non attivo') + '</span>' : isDue(r) ? '<span class="pill due">' + esc(eur(r.bonifico)) + '</span>' : '<span class="pill done">Bonificato</span>';
     return '<li><button type="button" data-c="' + esc(c.id) + '"' + (F && F.cid === c.id ? ' aria-current="true"' : '') + '><span class="nm">' + esc(c.nome) + '</span>' + st + '</button></li>'; }).join('') || '<li class="empty">Nessun collaboratore. Aggiungilo da Anagrafiche.</li>';
   const box = $('s-anno');
   if (!F) { box.hidden = true; return; }
@@ -591,16 +591,18 @@ function syncLine(l) {
   l.ore = round2((l.presenze || []).reduce((n, s) => n + s.ore, 0) + (l.oreExtra || 0));
 }
 const dayLbl = s => { const [y, m, d] = s.data.split('-').map(Number); return GG[(new Date(y, m - 1, d).getDay() + 6) % 7] + ' ' + d; };
+// fuori dal periodo del progetto la riga resta compilabile, ma il fisso non viene proposto
+function lineFor(i) { const l = lineFromInc(i); if (!inMese(i.progettoId, S.mese)) { l.importo = 0; l.fuori = true; } return l; }
 function loadForm(cid) {
   showErr('f-err', ''); fDelArm = false; $('f-del').textContent = 'Elimina scheda';
   if (!cid) { F = null; $('f-body').hidden = true; $('f-empty').hidden = false; return; }
   const c = cById(cid), r = prOf(S.mese, cid);
   F = {cid, mese: S.mese, exists: !!r, locked: !!r && !isDue(r), ecc: r ? r.eccedenza || 0 : 0, note: r ? r.note || '' : '', extra: r ? r.extra || 0 : 0, extraNote: r ? r.extraNote || '' : '', spese: r ? r.spese || 0 : 0, speseNote: r ? r.speseNote || '' : '', righe: []};
-  const incs = (c.incarichi || []).filter(i => i.tipo !== 'nessuno' && inMese(i.progettoId, S.mese));
+  const incs = (c.incarichi || []).filter(i => i.tipo !== 'nessuno');
   if (r) {
     F.righe = (r.righe || []).map(x => Object.assign({}, x));
-    incs.forEach(i => { if (!F.righe.some(x => x.progettoId === i.progettoId)) F.righe.push(lineFromInc(i)); });
-  } else F.righe = incs.map(lineFromInc);
+    incs.forEach(i => { if (!F.righe.some(x => x.progettoId === i.progettoId)) F.righe.push(lineFor(i)); });
+  } else F.righe = incs.map(lineFor);
   $('f-empty').hidden = true; $('f-body').hidden = false;
   $('f-ecc').value = F.ecc ? fmtN(F.ecc) : ''; $('f-note').value = F.note;
   $('f-extra').value = F.extra ? fmtN(F.extra) : ''; $('f-extra-n').value = F.extraNote; $('f-spese').value = F.spese ? fmtN(F.spese) : ''; $('f-spese-n').value = F.speseNote;
@@ -615,7 +617,7 @@ function loadForm(cid) {
 function renderRighe() {
   const dis = F.locked ? ' disabled' : '';
   $('f-righe').innerHTML = F.righe.map((l, i) => {
-    const nm = '<div class="pnm">' + logoTag(l.progettoId) + '<div><div class="pn">' + esc(l.progettoNome || (pById(l.progettoId) || {}).nome) + '</div><div class="ps">' + (l.tipo === 'mese' ? 'Fisso mensile' : 'A ore') + (l.rimborso ? ' + ' + eur(l.rimborso) + '/viaggio' : '') + '</div></div></div>';
+    const nm = '<div class="pnm">' + logoTag(l.progettoId) + '<div><div class="pn">' + esc(l.progettoNome || (pById(l.progettoId) || {}).nome) + '</div><div class="ps">' + (l.tipo === 'mese' ? 'Fisso mensile' : 'A ore') + (l.rimborso ? ' + ' + eur(l.rimborso) + '/viaggio' : '') + (l.fuori ? ' · progetto non attivo in questo mese' : '') + '</div></div></div>';
     l.presenze = l.presenze || []; l.slots = lineSlots(l, F.mese);
     const cal = l.slots.length > 0;
     let inp;
